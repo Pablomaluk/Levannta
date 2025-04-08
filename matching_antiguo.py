@@ -4,20 +4,25 @@ import itertools
 import datetime as dt
 from preprocessing import get_preprocessed_invoices_and_movements
 
-
-def get_exact_matches(invoices, movements):
-    matches = pd.merge(invoices, movements,
-                                left_on=['rut', 'inv_amount', 'counterparty_rut'], 
-                                right_on=['rut', 'mov_amount', 'counterparty_rut'])
-    matches = matches[matches['mov_date'] >= matches['inv_date']]
-    return matches
-
 def get_combined_movements_and_movement_groups(invoices, movements):
     add_movement_group_columns(movements)
     exact_single_matches = get_exact_matches(invoices, movements)
     movement_groups_with_exact_matches = get_movement_groups_with_exact_matches(invoices, movements, exact_single_matches)
     movements = pd.concat([movements, movement_groups_with_exact_matches], ignore_index=True)
     return movements
+
+
+def get_exact_matches(invoices, movements):
+    matches = pd.merge(invoices, movements,
+                                left_on=['rut', 'inv_amount', 'counterparty_rut'], 
+                                right_on=['rut', 'mov_amount', 'counterparty_rut'])
+    return get_matches_in_date_range(matches)
+
+def get_matches_in_date_range(matches):
+    return matches[(matches['mov_date'] >= matches['inv_date'] - dt.timedelta(days=14)) &
+                   (matches['mov_date'] <= matches['inv_date'] + dt.timedelta(days=90))]
+
+
 
 def add_movement_group_columns(movements):
     movements['is_mov_group'] = False
