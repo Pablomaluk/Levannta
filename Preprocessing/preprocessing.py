@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+import os
 
 def get_preprocessed_invoices_and_movements():
     try:
@@ -13,9 +15,13 @@ def get_preprocessed_invoices_and_movements():
         return invoices, movements
     
 def read_preprocessed_invoices_and_movements():
-    invoices = pd.read_csv('Invoices.csv')
-    movements = pd.read_csv('Movements.csv')
+    invoices = pd.read_csv(get_path('Preprocessed_Invoices.csv'))
+    movements = pd.read_csv('Preprocessed_Movements.csv')
     return set_invoices_and_movements_date_types(invoices, movements)
+
+def get_path(file):
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(BASE_DIR, file)
 
 def set_invoices_and_movements_date_types(invoices, movements):
     invoices = set_date_type(invoices, ['inv_date'])
@@ -23,8 +29,8 @@ def set_invoices_and_movements_date_types(invoices, movements):
     return invoices, movements
 
 def read_invoices_and_movements():
-    invoices = pd.read_csv('All_Invoices.csv')
-    movements = pd.read_csv('All_Movements.csv')
+    invoices = pd.read_csv(get_path('All_Invoices.csv'))
+    movements = pd.read_csv(get_path('All_Movements.csv'))
     return invoices, movements
 
 def get_valid_invoices_and_movements(invoices, movements):
@@ -62,6 +68,7 @@ def preprocess_movements(movements):
     movements = set_date_type(movements, ['mov_date'])
     movements = format_rut(movements, ['rut', 'counterparty_rut'])
     movements = remove_transfers_between_accounts(movements)
+    add_movement_group_columns(movements)
     return movements
 
 def remove_invoices_before_movements(invoices, movements):
@@ -72,8 +79,8 @@ def remove_invoices_before_movements(invoices, movements):
     return invoices
 
 def save_preprocessed_invoices_and_movements(invoices, movements):
-    invoices.to_csv('Invoices.csv', index=False)
-    movements.to_csv('Movements.csv', index=False)
+    invoices.to_csv(get_path('Preprocessed_Invoices.csv'), index=False)
+    movements.to_csv(get_path('Preprocessed_Movements.csv'), index=False)
 
 def select_invoice_columns(df):
     return df[['identity', 'number', 'invoice_date', 'total_adjusted_amount', 'counterparty_id']]
@@ -105,6 +112,10 @@ def rename_movement_columns(df):
 
 def remove_transfers_between_accounts(df):
     return df[df['rut'] != df['counterparty_rut']]
+
+def add_movement_group_columns(movements):
+    movements['is_mov_group'] = False
+    movements[['mov_group_ids', 'mov_group_dates']] = np.nan
 
 if __name__ == "__main__":
     pd.set_option('display.max_columns', None)
