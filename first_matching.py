@@ -2,23 +2,12 @@ import pandas as pd
 import numpy as np
 import itertools
 import datetime as dt
-import sys
-import os
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
 from Preprocessing.preprocessing import get_preprocessed_invoices_and_movements
-
-def get_path(file):
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(BASE_DIR, file)
+from helpers import read_stage_dfs, save_stage_dfs, print_matches_percentage_per_rut
 
 def get_current_matches_and_pending_invoices_and_movements():
     try:
-        matches, pending_invoices, pending_movements = read_dfs()
+        matches, pending_invoices, pending_movements = read_stage_dfs(1)
         return matches, pending_invoices, pending_movements
     except FileNotFoundError:
         invoices, movements = get_preprocessed_invoices_and_movements()
@@ -27,24 +16,11 @@ def get_current_matches_and_pending_invoices_and_movements():
         matches_dict = assign_matches(matches)
         matches = get_matches_from_dict(invoices, movements, matches_dict)
         pending_invoices, pending_movements = get_pending_invoices_and_movements(invoices, movements, matches_dict)
-        save_dfs(matches, pending_invoices, pending_movements)
+        save_stage_dfs(matches, pending_invoices, pending_movements, 1)
         return matches, pending_invoices, pending_movements
     finally:
-        print(f"Initial Matches\nInvoices assigned: {round(100*matches['inv_number'].nunique()/(matches['inv_number'].nunique()+len(pending_invoices)), 1)}%")
-
-
-def read_dfs():
-    matches = pd.read_csv(get_path('Matches.csv'))
-    invoices = pd.read_csv(get_path('Pending Invoices.csv'))
-    movements = pd.read_csv(get_path('Pending Movements.csv'))
-    invoices['inv_date'] = pd.to_datetime(invoices['inv_date']).dt.date
-    movements['mov_date'] = pd.to_datetime(movements['mov_date']).dt.date
-    return matches, invoices, movements
-
-def save_dfs(matches, pending_invoices, pending_movements):
-    matches.to_csv(get_path('Matches.csv'), index=False)
-    pending_invoices.to_csv(get_path('Pending Invoices.csv'), index=False)
-    pending_movements.to_csv(get_path('Pending Movements.csv'), index=False)
+        print('Matching round 1')
+        print_matches_percentage_per_rut(matches, pending_invoices, pending_movements)
 
 def get_combined_movements_and_movement_groups(invoices, movements):
     exact_matches = get_exact_matches(invoices, movements)
@@ -126,59 +102,6 @@ def get_pending_invoices_and_movements(invoices, movements, matches_dict):
     pending_movements = movements[~movements['is_mov_group'] & ~movements['mov_id'].isin(matches_dict.keys())]
     return pending_invoices, pending_movements
 
-
-# Visualización de datos
-
-def most_active_counterparties(invoices, movements):
-    set_counterparty_counts_and_balances(invoices, movements)
-    counterparty_ruts = (
-        invoices[['counterparty_rut', 'inv_count', 'inv_amount_sum']]
-        .drop_duplicates()
-        .sort_values(by=['inv_count', 'inv_amount_sum'], ascending=False)['counterparty_rut']
-        .head(5).values
-    )
-    invoices = invoices[['rut', 'counterparty_rut', 'inv_date', 'inv_amount', 'inv_number']]
-    invoices.columns = ['RUT', 'RUT contraparte', 'Fecha factura', 'Monto factura', 'Número SII']
-    movements = movements[movements['is_mov_group'] == False]
-    movements = movements[['rut', 'counterparty_rut', 'mov_date', 'mov_amount', 'mov_id', 'mov_description']]
-    movements.columns = ['RUT', 'RUT contraparte', 'Fecha movimiento', 'Monto movimiento', 'ID movimiento', 'Descripción']
-
-    dfs_invoices = []
-    dfs_movements = []
-
-    for rut in counterparty_ruts:
-            dfs_invoices.append(invoices[invoices['RUT contraparte'] == rut].sort_values(by='Fecha factura'))
-            dfs_movements.append(movements[movements['RUT contraparte'] == rut].sort_values(by='Fecha movimiento'))
-
-    return counterparty_ruts, dfs_invoices, dfs_movements
-
-def set_counterparty_counts_and_balances(invoices, movements):
-    invoices['inv_amount_sum'] = invoices.groupby('counterparty_rut')['inv_amount'].transform('sum')
-    invoices['inv_count'] = invoices.groupby('counterparty_rut')['inv_amount'].transform('count')
-    movements['mov_amount_sum'] = movements.groupby('counterparty_rut')['mov_amount'].transform('sum')
-    movements['mov_count'] = movements.groupby('counterparty_rut')['mov_amount'].transform('count')
-
-def save_detailed(matches, pending_invoices, pending_movements, invoices, movements):
-    matches = matches.sort_values(by=['counterparty_rut', 'inv_date', 'mov_date']).drop(columns=['is_mov_group', 'mov_group_ids', 'mov_group_dates'])
-    pending_invoices = pending_invoices.sort_values(by=['counterparty_rut', 'inv_date'])
-    pending_movements = pending_movements.sort_values(by=['counterparty_rut', 'mov_date']).drop(columns=['is_mov_group', 'mov_group_ids', 'mov_group_dates'])
-
-    matches = matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_description']]
-    matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII', 'Descripción depósito']
-
-    ruts, invoice_dfs, movement_dfs = most_active_counterparties(invoices, movements)
-
-    with pd.ExcelWriter('output.xlsx') as writer:
-        matches.to_excel(writer, sheet_name='Matches', index=False)
-        pending_invoices.to_excel(writer, sheet_name='Pending Invoices', index=False)
-        pending_movements.to_excel(writer, sheet_name='Pending Movements', index=False)
-        for i in range(len(ruts)):
-            rut = ruts[i]
-            invoice_dfs[i].to_excel(writer, sheet_name=f"Facturas {rut[:-1]}-{rut[-1]}", index=False)
-            start_row = len(invoice_dfs[i]) + 2
-            movement_dfs[i].to_excel(writer, sheet_name=f"Facturas {rut[:-1]}-{rut[-1]}", index=False, startrow=start_row)
-            start_row += len(movement_dfs[i]) + 2
-            matches[matches['RUT contraparte'] == rut].to_excel(writer, sheet_name=f"Facturas {rut[:-1]}-{rut[-1]}", index=False, startrow=start_row)
 
 if __name__ == '__main__':
     pd.set_option('display.max_columns', None)
