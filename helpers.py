@@ -14,6 +14,11 @@ def save_stage_dfs(matches, pending_invoices, pending_movements, num):
     pending_invoices.to_csv(os.path.join(f"Matching_{num}", 'Pending Invoices.csv'), index=False)
     pending_movements.to_csv(os.path.join(f"Matching_{num}", 'Pending Movements.csv'), index=False)
 
+def set_exact_match_params(matches):
+    matches['rel_amount_diff'] = 0
+    matches['amount_similarity'] = 1
+    return matches
+
 def print_matches_percentage_per_rut(matches, pending_invoices, pending_movements):
     ruts = matches['rut'].unique().tolist()
     print(f"TOTAL Invoices: {percent(matches['inv_number'].nunique()/(matches['inv_number'].nunique()+len(pending_invoices)))}",

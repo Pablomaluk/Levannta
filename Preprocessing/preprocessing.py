@@ -60,6 +60,7 @@ def preprocess_invoices(invoices):
     invoices = rename_invoice_columns(invoices)
     invoices = set_date_type(invoices, ['inv_date'])
     invoices = format_rut(invoices, ['rut', 'counterparty_rut'])
+    add_invoice_group_columns(invoices)
     return invoices
 
 def preprocess_movements(movements):
@@ -88,6 +89,10 @@ def select_invoice_columns(df):
 def rename_invoice_columns(df):
     return df.rename(columns={'identity': 'rut', 'number': 'inv_number', 'total_adjusted_amount': 'inv_amount',
                               'counterparty_id': 'counterparty_rut', 'invoice_date':'inv_date'})
+
+def add_invoice_group_columns(invoices):
+    invoices['is_inv_group'] = False
+    invoices[['inv_group_numbers', 'inv_group_dates']] = np.nan
 
 def set_date_type(df, col):
     df[col] = df[col].apply(lambda x: pd.to_datetime(x, errors='coerce'))
