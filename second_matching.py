@@ -6,7 +6,7 @@ from recordlinkage.preprocessing import clean
 from rapidfuzz import fuzz
 import re
 from first_matching import get_current_matches_and_pending_invoices_and_movements
-from helpers import read_stage_dfs, save_stage_dfs, print_matches_percentage_per_rut
+from helpers import read_stage_dfs, save_stage_dfs, print_matches_percentage_per_rut, get_excel_summary_per_rut
 pd.set_option('display.max_columns', None)
 
 def get_matches_in_date_range(matches):
@@ -47,56 +47,29 @@ def get_best_gaussian_matches(matches):
 
 # Visualización de datos
 
-def most_active_counterparties(invoices, movements):
-    set_counterparty_counts_and_balances(invoices, movements)
-    counterparty_ruts = (
-        invoices[['counterparty_rut', 'inv_count', 'inv_amount_sum']]
-        .drop_duplicates()
-        .sort_values(by=['inv_count', 'inv_amount_sum'], ascending=False)['counterparty_rut']
-        .head(5).values
-    )
-    invoices = invoices[['rut', 'counterparty_rut', 'inv_date', 'inv_amount', 'inv_number']]
-    invoices.columns = ['RUT', 'RUT contraparte', 'Fecha factura', 'Monto factura', 'Número SII']
-    movements = movements[movements['is_mov_group'] == False]
-    movements = movements[['rut', 'counterparty_rut', 'mov_date', 'mov_amount', 'mov_id', 'mov_description']]
-    movements.columns = ['RUT', 'RUT contraparte', 'Fecha movimiento', 'Monto movimiento', 'ID movimiento', 'Descripción']
-
-    dfs_invoices = []
-    dfs_movements = []
-
-    for rut in counterparty_ruts:
-            dfs_invoices.append(invoices[invoices['RUT contraparte'] == rut].sort_values(by='Fecha factura'))
-            dfs_movements.append(movements[movements['RUT contraparte'] == rut].sort_values(by='Fecha movimiento'))
-
-    return counterparty_ruts, dfs_invoices, dfs_movements
-
-def set_counterparty_counts_and_balances(invoices, movements):
-    invoices['inv_amount_sum'] = invoices.groupby('counterparty_rut')['inv_amount'].transform('sum')
-    invoices['inv_count'] = invoices.groupby('counterparty_rut')['inv_amount'].transform('count')
-    movements['mov_amount_sum'] = movements.groupby('counterparty_rut')['mov_amount'].transform('sum')
-    movements['mov_count'] = movements.groupby('counterparty_rut')['mov_amount'].transform('count')
-
-def save_detailed(matches, pending_invoices, pending_movements, invoices, movements):
+def save_detailed(matches, pending_invoices, pending_movements):
     matches = matches.sort_values(by=['counterparty_rut', 'inv_date', 'mov_date']).drop(columns=['is_mov_group', 'mov_group_ids', 'mov_group_dates'])
     pending_invoices = pending_invoices.sort_values(by=['counterparty_rut', 'inv_date'])
     pending_movements = pending_movements.sort_values(by=['counterparty_rut', 'mov_date']).drop(columns=['is_mov_group', 'mov_group_ids', 'mov_group_dates'])
+    worst_matches = matches.sort_values(by='amount_similarity', ascending=True).head(50)
+    best_matches = matches.sort_values(by='amount_similarity', ascending=False).head(50)
 
     matches = matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_description']]
     matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII', 'Descripción depósito']
 
-    ruts, invoice_dfs, movement_dfs = most_active_counterparties(invoices, movements)
+    worst_matches = worst_matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_description', 'rel_amount_diff']]
+    worst_matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII', 'Descripción depósito', 'Diferencia porcentual']
+
+    best_matches = best_matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_description', 'rel_amount_diff']]
+    best_matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII', 'Descripción depósito', 'Diferencia porcentual']
+
 
     with pd.ExcelWriter('output.xlsx') as writer:
         matches.to_excel(writer, sheet_name='Matches', index=False)
         pending_invoices.to_excel(writer, sheet_name='Pending Invoices', index=False)
         pending_movements.to_excel(writer, sheet_name='Pending Movements', index=False)
-        for i in range(len(ruts)):
-            rut = ruts[i]
-            invoice_dfs[i].to_excel(writer, sheet_name=f"Facturas {rut[:-1]}-{rut[-1]}", index=False)
-            start_row = len(invoice_dfs[i]) + 2
-            movement_dfs[i].to_excel(writer, sheet_name=f"Facturas {rut[:-1]}-{rut[-1]}", index=False, startrow=start_row)
-            start_row += len(movement_dfs[i]) + 2
-            matches[matches['RUT contraparte'] == rut].to_excel(writer, sheet_name=f"Facturas {rut[:-1]}-{rut[-1]}", index=False, startrow=start_row)
+        worst_matches.to_excel(writer, sheet_name='Worst Matches', index=False)
+        best_matches.to_excel(writer, sheet_name='Best Matches', index=False)
 
 if __name__ == '__main__':
     pd.set_option('display.max_columns', None)
@@ -108,11 +81,8 @@ if __name__ == '__main__':
     matches, previous_matches = compare_amount_difference(invoices, movements, previous_matches)
     matches = assign_gaussian_matches(matches)
 
-    invoices = invoices[~invoices['inv_number'].isin(matches['inv_number'])]
-    movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
-    matches = pd.concat([previous_matches, matches])
-    save_stage_dfs(matches, invoices, movements, 2)
-
-
-    print('Matching Round 2')
-    print_matches_percentage_per_rut(matches, invoices, movements)
+    all_matches = pd.concat([previous_matches, matches])
+    pending_invoices = invoices[~invoices['inv_number'].isin(all_matches['inv_number'])]
+    pending_movements = movements[~movements['mov_id'].isin(all_matches['mov_id'])]
+    #save_detailed(matches, invoices, movements)
+    get_excel_summary_per_rut(all_matches, pending_invoices, pending_movements)
