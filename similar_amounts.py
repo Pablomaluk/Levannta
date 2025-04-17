@@ -2,29 +2,25 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 from exact_amounts import get_first_matches_and_pending_invoices_and_movements
-from helpers import read_stage_dfs, save_stage_dfs, print_matches_percentage_per_rut
+import helpers
 
-def get_second_matches_and_pending_invoices_and_movements():
-    try:
-        matches, pending_invoices, pending_movements = read_stage_dfs(2)
-    except FileNotFoundError:
-        previous_matches, invoices, movements = get_first_matches_and_pending_invoices_and_movements()
-        matches = compare_amount_difference(invoices, movements, previous_matches)
-        matches = assign_gaussian_matches(matches)
-        matches = pd.concat([previous_matches, matches])
-        pending_invoices = invoices[~invoices['inv_number'].isin(matches['inv_number'])]
-        pending_movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
-        save_stage_dfs(matches, pending_invoices, pending_movements, 2)
-    finally:
-        print('Matching round 2')
-        print_matches_percentage_per_rut(matches, pending_invoices, pending_movements)
-        return matches, pending_invoices, pending_movements
+PATH = "Similar Amounts"
+
+def get_current_dfs(dfs):
+    return helpers.get_current_dfs(lambda: main(*dfs), PATH)
+
+def main(invoices, movements, previous_matches):
+    matches = compare_amount_difference(invoices, movements, previous_matches)
+    matches = assign_gaussian_matches(matches)
+    matches = pd.concat([previous_matches, matches])
+    pending_invoices = invoices[~invoices['inv_number'].isin(matches['inv_number'])]
+    pending_movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
+    return matches, pending_invoices, pending_movements
 
 def get_matches_in_date_range(matches):
     return matches[(matches['mov_date'] >= matches['inv_date'] - dt.timedelta(days=14)) &
                    (matches['mov_date'] <= matches['inv_date'] + dt.timedelta(days=90))]
 
-#Relative difference
 def compare_amount_difference(invoices, movements, matches):
     links = pd.merge(invoices, movements, on=['rut','counterparty_rut'])
     links = get_matches_in_date_range(links)
@@ -79,15 +75,3 @@ def save_detailed(matches, pending_invoices, pending_movements):
         pending_movements.to_excel(writer, sheet_name='Pending Movements', index=False)
         worst_matches.to_excel(writer, sheet_name='Worst Matches', index=False)
         best_matches.to_excel(writer, sheet_name='Best Matches', index=False)
-
-if __name__ == '__main__':
-    pd.set_option('display.max_columns', None)
-    matches, pending_invoices, pending_movements = get_second_matches_and_pending_invoices_and_movements()
-    # previous_matches, invoices, movements = get_current_matches_and_pending_invoices_and_movements()
-    # matches, previous_matches = compare_amount_difference(invoices, movements, previous_matches)
-    # matches = assign_gaussian_matches(matches)
-
-    # all_matches = pd.concat([previous_matches, matches])
-    # pending_invoices = invoices[~invoices['inv_number'].isin(all_matches['inv_number'])]
-    # pending_movements = movements[~movements['mov_id'].isin(all_matches['mov_id'])]
-    #get_excel_summary_per_rut(matches, pending_invoices, pending_movements)

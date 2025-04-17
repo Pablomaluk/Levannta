@@ -1,13 +1,13 @@
 import os
 import pandas as pd
 
-def get_current_dfs(main_function, path, print_text):
+def get_current_dfs(main_function, path):
     try:
         dfs = read_dfs(path)
     except FileNotFoundError:
         dfs = main_function()
         save_dfs(path, *dfs)
-    print(print_text)
+    print(path)
     print_matches_percentage_per_rut(*dfs)
     return dfs
 
@@ -43,7 +43,7 @@ def print_matches_percentage_per_rut(pending_invoices, pending_movements, matche
         print(f"RUT: {rut}; Invs assigned: {percent(inv_matches/(inv_matches + invs_pending))}; Movs assigned: {percent(mov_matches/(mov_matches + movs_pending))}")
     print('')
 
-def get_excel_summary_per_rut(matches, pending_invoices, pending_movements):
+def get_excel_summary_per_rut(pending_invoices, pending_movements, matches):
     ruts = matches['rut'].unique().tolist()
     ruts_summary = []
     for rut in ruts:

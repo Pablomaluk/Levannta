@@ -5,11 +5,9 @@ import datetime as dt
 import helpers
 
 PATH = "Exact Amounts"
-PRINT_TEXT = "Exact amount matching"
 
 def get_current_dfs(dfs):
-    main_function = lambda: main(*dfs)
-    return helpers.get_current_dfs(main_function, PATH, PRINT_TEXT)
+    return helpers.get_current_dfs(lambda: main(*dfs), PATH)
 
 def main(invoices, movements):
     movements = get_combined_movements_and_movement_groups(invoices, movements)

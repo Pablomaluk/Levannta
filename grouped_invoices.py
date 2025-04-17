@@ -2,29 +2,26 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import itertools
-from similar_amounts import get_second_matches_and_pending_invoices_and_movements
-from helpers import read_stage_dfs, save_stage_dfs, print_matches_percentage_per_rut, get_excel_summary_per_rut, set_exact_match_params
+import helpers
 
-def get_third_matches_and_pending_invoices_and_movements():
-    try:
-        matches, pending_invoices, pending_movements = read_stage_dfs(3)
-    except FileNotFoundError:
-        previous_matches, invoices, movements = get_second_matches_and_pending_invoices_and_movements()
+PATH = "Grouped Invoices"
+
+def get_current_dfs(dfs):
+    return helpers.get_current_dfs(lambda: main(*dfs), PATH)
+
+def main(invoices, movements, previous_matches):
         inv_groups = group_invoices_and_return_groups_with_matches(invoices, movements)
         matches = get_exact_matches(inv_groups, movements)
         matches_dict = assign_matches(matches)
         matches = pd.DataFrame(list(matches_dict.items()), columns=['inv_number', 'mov_id'])
         matches = get_merged_matches(matches, invoices, movements)
-        matches = set_exact_match_params(matches)
+        matches = helpers.set_exact_match_params(matches)
         save_new_matches(matches)
         matches = pd.concat([previous_matches, matches])
         pending_invoices = invoices[~invoices['inv_number'].isin(matches['inv_number'])]
         pending_movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
-        save_stage_dfs(matches, pending_invoices, pending_movements, 3)
-    finally:
-        print('Matching round 3')
-        print_matches_percentage_per_rut(matches, pending_invoices, pending_movements)
-        return matches, pending_invoices, pending_movements
+        return pending_invoices, pending_movements, matches
+
 
 def get_matches_in_date_range(matches):
     cond = matches.apply(lambda x: x['mov_date'] >= x['inv_date'] and
@@ -99,9 +96,5 @@ def save_new_matches(new_matches):
     matches = matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_id','mov_description']]
     matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII','ID Movimiento','Descripción depósito']
 
-    with pd.ExcelWriter('output.xlsx') as writer:
+    with pd.ExcelWriter('Group Invoice Matches.xlsx') as writer:
         matches.to_excel(writer, sheet_name='Matches', index=False)
-
-if __name__ == '__main__':
-    pd.set_option('display.max_columns', None)
-    get_third_matches_and_pending_invoices_and_movements()
