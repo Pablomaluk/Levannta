@@ -1,12 +1,14 @@
 import pandas as pd
 import numpy as np
 import datetime as dt
-from exact_amounts import get_first_matches_and_pending_invoices_and_movements
 import helpers
 
 PATH = "Similar Amounts"
 
 def get_current_dfs(dfs):
+    print(dfs[0].columns)
+    print(dfs[1].columns)
+    print(dfs[2].columns)
     return helpers.get_current_dfs(lambda: main(*dfs), PATH)
 
 def main(invoices, movements, previous_matches):
@@ -15,7 +17,7 @@ def main(invoices, movements, previous_matches):
     matches = pd.concat([previous_matches, matches])
     pending_invoices = invoices[~invoices['inv_number'].isin(matches['inv_number'])]
     pending_movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
-    return matches, pending_invoices, pending_movements
+    return pending_invoices, pending_movements, matches
 
 def get_matches_in_date_range(matches):
     return matches[(matches['mov_date'] >= matches['inv_date'] - dt.timedelta(days=14)) &

@@ -92,7 +92,7 @@ def get_merged_matches(matches, invoices, movements):
     return matches
 
 def save_new_matches(new_matches):
-    matches = new_matches.sort_values(by=['counterparty_rut', 'inv_date', 'mov_date']).drop(columns=['is_mov_group', 'mov_group_ids', 'mov_group_dates'])
+    matches = new_matches.sort_values(by=['counterparty_rut', 'inv_date', 'mov_date'])
     matches = matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_id','mov_description']]
     matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII','ID Movimiento','Descripción depósito']
 
