@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import itertools
-from second_matching import get_second_matches_and_pending_invoices_and_movements
+from similar_amounts import get_second_matches_and_pending_invoices_and_movements
 from helpers import read_stage_dfs, save_stage_dfs, print_matches_percentage_per_rut, get_excel_summary_per_rut, set_exact_match_params
 
 def get_third_matches_and_pending_invoices_and_movements():
@@ -16,6 +16,7 @@ def get_third_matches_and_pending_invoices_and_movements():
         matches = pd.DataFrame(list(matches_dict.items()), columns=['inv_number', 'mov_id'])
         matches = get_merged_matches(matches, invoices, movements)
         matches = set_exact_match_params(matches)
+        save_new_matches(matches)
         matches = pd.concat([previous_matches, matches])
         pending_invoices = invoices[~invoices['inv_number'].isin(matches['inv_number'])]
         pending_movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
@@ -85,12 +86,21 @@ def assign_matches(matches):
                 continue
             for inv_num in matched_invoice_group['inv_group_numbers']:
                 matches_dict[inv_num] = mov_id
+            break
     return matches_dict
 
 def get_merged_matches(matches, invoices, movements):
     matches = pd.merge(matches, invoices, on='inv_number')
     matches = pd.merge(matches, movements, on=['mov_id', 'rut', 'counterparty_rut'])
     return matches
+
+def save_new_matches(new_matches):
+    matches = new_matches.sort_values(by=['counterparty_rut', 'inv_date', 'mov_date']).drop(columns=['is_mov_group', 'mov_group_ids', 'mov_group_dates'])
+    matches = matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_id','mov_description']]
+    matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII','ID Movimiento','Descripción depósito']
+
+    with pd.ExcelWriter('output.xlsx') as writer:
+        matches.to_excel(writer, sheet_name='Matches', index=False)
 
 if __name__ == '__main__':
     pd.set_option('display.max_columns', None)

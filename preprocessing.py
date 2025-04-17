@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import os
 
+PATH = "Preprocessing"
+
 def get_preprocessed_invoices_and_movements():
     try:
         return read_preprocessed_invoices_and_movements()
@@ -15,22 +17,13 @@ def get_preprocessed_invoices_and_movements():
         return invoices, movements
     
 def read_preprocessed_invoices_and_movements():
-    invoices = pd.read_csv(get_path('Preprocessed_Invoices.csv'))
-    movements = pd.read_csv('Preprocessed_Movements.csv')
-    return set_invoices_and_movements_date_types(invoices, movements)
-
-def get_path(file):
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(BASE_DIR, file)
-
-def set_invoices_and_movements_date_types(invoices, movements):
-    invoices = set_date_type(invoices, ['inv_date'])
-    movements = set_date_type(movements, ['mov_date'])
-    return invoices, movements
+    invoices = pd.read_csv(os.path.join(PATH, 'Preprocessed Invoices.csv'))
+    movements = pd.read_csv(os.path.join(PATH,'Preprocessed Movements.csv'))
+    return set_invoices_date_type(invoices), set_movements_date_type(movements) 
 
 def read_invoices_and_movements():
-    invoices = pd.read_csv(get_path('All_Invoices.csv'))
-    movements = pd.read_csv(get_path('All_Movements.csv'))
+    invoices = pd.read_csv(os.path.join(PATH,'All Invoices.csv'))
+    movements = pd.read_csv(os.path.join(PATH,'All Movements.csv'))
     return invoices, movements
 
 def get_valid_invoices_and_movements(invoices, movements):
@@ -80,8 +73,8 @@ def remove_invoices_before_movements(invoices, movements):
     return invoices
 
 def save_preprocessed_invoices_and_movements(invoices, movements):
-    invoices.to_csv(get_path('Preprocessed_Invoices.csv'), index=False)
-    movements.to_csv(get_path('Preprocessed_Movements.csv'), index=False)
+    invoices.to_csv(os.path.join(PATH, 'Preprocessed Invoices.csv'), index=False)
+    movements.to_csv(os.path.join(PATH, 'Preprocessed Movements.csv'), index=False)
 
 def select_invoice_columns(df):
     return df[['identity', 'number', 'invoice_date', 'total_adjusted_amount', 'counterparty_id']]
@@ -90,15 +83,21 @@ def rename_invoice_columns(df):
     return df.rename(columns={'identity': 'rut', 'number': 'inv_number', 'total_adjusted_amount': 'inv_amount',
                               'counterparty_id': 'counterparty_rut', 'invoice_date':'inv_date'})
 
-def add_invoice_group_columns(invoices):
-    invoices['is_inv_group'] = False
-    invoices[['inv_group_numbers', 'inv_group_dates']] = np.nan
+def set_invoices_date_type(invoices):
+    return set_date_type(invoices, ['inv_date'])
+
+def set_movements_date_type(movements):
+    return set_date_type(movements, ['mov_date'])
 
 def set_date_type(df, col):
     df[col] = df[col].apply(lambda x: pd.to_datetime(x, errors='coerce'))
     df = df.dropna(subset=col)
     df[col] = df[col].apply(lambda x: x.dt.date)
     return df
+
+def add_invoice_group_columns(invoices):
+    invoices['is_inv_group'] = False
+    invoices[['inv_group_numbers', 'inv_group_dates']] = np.nan
 
 def format_rut(df, columns):
     df[columns] = df[columns].apply(remove_dash_from_rut)
@@ -127,4 +126,3 @@ if __name__ == "__main__":
     inv, mov = get_preprocessed_invoices_and_movements()
     print(inv.head())
     print(mov.head())
-    

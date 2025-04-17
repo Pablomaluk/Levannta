@@ -1,25 +1,37 @@
 import os
 import pandas as pd
 
-def read_stage_dfs(num):
-    matches = pd.read_csv(os.path.join(f"Matching_{num}", 'Matches.csv'))
-    invoices = pd.read_csv(os.path.join(f"Matching_{num}", 'Pending Invoices.csv'))
-    movements = pd.read_csv(os.path.join(f"Matching_{num}", 'Pending Movements.csv'))
+def get_current_dfs(main_function, path, print_text):
+    try:
+        dfs = read_dfs(path)
+    except FileNotFoundError:
+        dfs = main_function()
+        save_dfs(path, *dfs)
+    print(print_text)
+    print_matches_percentage_per_rut(*dfs)
+    return dfs
+
+def read_dfs(path):
+    invoices = pd.read_csv(os.path.join(path, 'Pending Invoices.csv'))
+    movements = pd.read_csv(os.path.join(path, 'Pending Movements.csv'))
+    matches = pd.read_csv(os.path.join(path, 'Matches.csv'))
     invoices['inv_date'] = pd.to_datetime(invoices['inv_date']).dt.date
     movements['mov_date'] = pd.to_datetime(movements['mov_date']).dt.date
-    return matches, invoices, movements
+    return invoices, movements, matches
 
-def save_stage_dfs(matches, pending_invoices, pending_movements, num):
-    matches.to_csv(os.path.join(f"Matching_{num}", 'Matches.csv'), index=False)
-    pending_invoices.to_csv(os.path.join(f"Matching_{num}", 'Pending Invoices.csv'), index=False)
-    pending_movements.to_csv(os.path.join(f"Matching_{num}", 'Pending Movements.csv'), index=False)
+def save_dfs(path, invoices, movements, matches):
+    if not os.path.exists(path):
+         os.mkdir(path)
+    invoices.to_csv(os.path.join(path, 'Pending Invoices.csv'), index=False)
+    movements.to_csv(os.path.join(path, 'Pending Movements.csv'), index=False)
+    matches.to_csv(os.path.join(path, 'Matches.csv'), index=False)
 
 def set_exact_match_params(matches):
     matches['rel_amount_diff'] = 0
     matches['amount_similarity'] = 1
     return matches
 
-def print_matches_percentage_per_rut(matches, pending_invoices, pending_movements):
+def print_matches_percentage_per_rut(pending_invoices, pending_movements, matches):
     ruts = matches['rut'].unique().tolist()
     print(f"TOTAL Invoices: {percent(matches['inv_number'].nunique()/(matches['inv_number'].nunique()+len(pending_invoices)))}",
         f"TOTAL Movements: {percent(matches['mov_id'].nunique()/(matches['mov_id'].nunique()+len(pending_movements)))}")
