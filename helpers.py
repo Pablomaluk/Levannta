@@ -49,7 +49,6 @@ def save_results(dfs):
     dates = pd.read_csv("Dates.csv")
     dates['RUT'] = dates['RUT'].astype(str)
     ruts_summary['RUT'] = ruts_summary['RUT'].astype(str)
-    print(ruts_summary)
     matches = matches.sort_values(by=['counterparty_rut', 'inv_date', 'mov_date'])
     matches = matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_id','mov_description']]
     matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII','ID Movimiento','Descripción depósito']
@@ -59,6 +58,7 @@ def save_results(dfs):
         matches.to_excel(writer, sheet_name="Matches", index=False)
         invoices.to_excel(writer, sheet_name="Facturas pendientes", index=False)
         movements.to_excel(writer, sheet_name="Movimientos pendientes", index=False)
+    return dfs
 
 def get_excel_summary_per_rut(pending_invoices, pending_movements, matches):
     ruts = matches['rut'].unique().tolist()

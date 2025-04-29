@@ -6,9 +6,6 @@ import helpers
 PATH = "Similar Amounts"
 
 def get_current_dfs(dfs):
-    print(dfs[0].columns)
-    print(dfs[1].columns)
-    print(dfs[2].columns)
     return helpers.get_current_dfs(lambda: main(*dfs), PATH)
 
 def main(invoices, movements, previous_matches):
