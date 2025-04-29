@@ -12,10 +12,11 @@ def get_preprocessed_invoices_and_movements():
         invoices, movements = get_valid_invoices_and_movements(invoices, movements)
         invoices = preprocess_invoices(invoices)
         movements = preprocess_movements(movements)
+        save_dates(invoices, movements)
         invoices = remove_invoices_before_movements(invoices, movements)
         save_preprocessed_invoices_and_movements(invoices, movements)
         return invoices, movements
-    
+
 def read_preprocessed_invoices_and_movements():
     invoices = pd.read_csv(os.path.join(PATH, 'Preprocessed Invoices.csv'))
     movements = pd.read_csv(os.path.join(PATH,'Preprocessed Movements.csv'))
@@ -64,6 +65,16 @@ def preprocess_movements(movements):
     movements = remove_transfers_between_accounts(movements)
     add_movement_group_columns(movements)
     return movements
+
+def save_dates(invoices, movements):
+    min_mov_dates = movements.groupby('rut').min().reset_index()[['rut', 'mov_date']]
+    min_inv_dates = invoices.groupby('rut').min().reset_index()[['rut', 'inv_date']]
+    new_invs = remove_invoices_before_movements(invoices, movements)
+    new_inv_dates = new_invs.groupby('rut').min().reset_index()[['rut', 'inv_date']]
+    dates = pd.merge(new_inv_dates, pd.merge(min_mov_dates, min_inv_dates, on="rut"), on="rut")
+    dates = dates[['rut', 'mov_date', 'inv_date_y', 'inv_date_x']]
+    dates.columns = ['RUT', 'Primer movimiento registrado', 'Primera factura registrada','Primera factura utilizada']
+    dates.to_csv("Dates.csv", index=False)
 
 def remove_invoices_before_movements(invoices, movements):
     earliest_movements = movements.groupby('rut').min().reset_index()[['rut', 'mov_date']]

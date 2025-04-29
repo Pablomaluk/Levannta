@@ -46,9 +46,14 @@ def print_matches_percentage_per_rut(pending_invoices, pending_movements, matche
 def save_results(dfs):
     invoices, movements, matches = dfs
     ruts_summary = get_excel_summary_per_rut(invoices, movements, matches)
+    dates = pd.read_csv("Dates.csv")
+    dates['RUT'] = dates['RUT'].astype(str)
+    ruts_summary['RUT'] = ruts_summary['RUT'].astype(str)
+    print(ruts_summary)
     matches = matches.sort_values(by=['counterparty_rut', 'inv_date', 'mov_date'])
     matches = matches[['rut', 'counterparty_rut', 'inv_amount', 'mov_amount', 'inv_date', 'mov_date', 'inv_number', 'mov_id','mov_description']]
     matches.columns = ['RUT', 'RUT contraparte', 'Monto facturado', 'Monto depositado', 'Fecha factura', 'Fecha depósito', 'Número SII','ID Movimiento','Descripción depósito']
+    ruts_summary = pd.merge(ruts_summary, dates, on="RUT")
     with pd.ExcelWriter('Resultados.xlsx') as writer:
         ruts_summary.to_excel(writer, sheet_name="Resumen clientes", index=False)
         matches.to_excel(writer, sheet_name="Matches", index=False)
@@ -79,7 +84,7 @@ def get_excel_summary_per_rut(pending_invoices, pending_movements, matches):
         prct_inv_amount = round(100*matched_inv_amount/(total_inv_amount), 2)
         prct_mov_amount = round(100*matched_mov_amount/(total_mov_amount), 2)
         ruts_summary.append({
-            'RUT': add_rut_dash(rut),
+            'RUT': rut,
             'Total facturas':total_invs, 'Total movimientos':total_movs, "Facutras conciliadas %":prct_matched_invs,
             "Movimientos conciliados %": prct_matched_movs, "Monto facturas":total_inv_amount, 
             "Monto movimientos": total_mov_amount, "Monto facturas conciliadas %":prct_inv_amount,
