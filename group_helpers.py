@@ -1,0 +1,23 @@
+import numpy as np
+
+def get_invoices_with_rut_associated_movements(invoices, movements):
+    return invoices[invoices['counterparty_rut'].isin(movements['counterparty_rut'])]
+
+def get_movements_with_rut_associated_invoices(invoices, movements):
+    return movements[movements['counterparty_rut'].isin(invoices['counterparty_rut'])]
+
+def get_invoices_without_rut_associated_movements(invoices, movements):
+    return invoices[~invoices['counterparty_rut'].isin(movements['counterparty_rut'])]
+
+def get_movements_without_rut_associated_invoices(invoices, movements):
+    return movements[~movements['counterparty_rut'].isin(invoices['counterparty_rut'])]
+
+def create_movement_group(movements):
+    group = movements[0].copy()
+    group['mov_amount'] = sum(map(lambda x: x['mov_amount'], movements))
+    group['is_mov_group'] = True
+    group['mov_group_ids'] = tuple((map(lambda x: x['mov_id'], movements)))
+    group['mov_group_dates'] = tuple(map(lambda x: x['mov_date'], movements))
+    group['mov_id'] = np.nan
+    group['mov_description'] = np.nan
+    return group
