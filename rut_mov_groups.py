@@ -1,8 +1,11 @@
 import pandas as pd
 import itertools
 from group_helpers import create_movement_group, get_movements_with_rut_associated_invoices
-from preprocessing import get_preprocessed_invoices_and_movements
 from params import MAX_GROUP_LEN, MAX_GROUP_DATE_DIFF
+
+def get_movement_groups_with_counterparty_invoices(invoices, movements):
+    movements = get_movements_with_rut_associated_invoices(invoices, movements)
+    return group_movements(movements)
 
 def group_movements(movements):
     mov_groups = []
@@ -30,8 +33,3 @@ def get_group_subgroups(movs):
                     if (max_date - min_date).days <= MAX_GROUP_DATE_DIFF:
                         unique_groups.append(list(comb))
     return unique_groups
-
-if __name__ == "__main__":
-    invoices, movements = get_preprocessed_invoices_and_movements()
-    movements = get_movements_with_rut_associated_invoices(invoices, movements)
-    mov_groups = group_movements(movements)

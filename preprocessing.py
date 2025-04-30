@@ -95,10 +95,14 @@ def rename_invoice_columns(df):
                               'counterparty_id': 'counterparty_rut', 'invoice_date':'inv_date'})
 
 def set_invoices_date_type(invoices):
-    return set_date_type(invoices, ['inv_date'])
+    invoices = set_date_type(invoices, ['inv_date'])
+    invoices =  set_date_type(invoices, ['first_inv_date'])
+    return  set_date_type(invoices, ['last_inv_date'])
 
 def set_movements_date_type(movements):
-    return set_date_type(movements, ['mov_date'])
+    movements = set_date_type(movements, ['mov_date'])
+    movements =  set_date_type(movements, ['first_mov_date'])
+    return  set_date_type(movements, ['last_mov_date'])
 
 def set_date_type(df, col):
     df[col] = df[col].apply(lambda x: pd.to_datetime(x, errors='coerce'))
@@ -108,7 +112,10 @@ def set_date_type(df, col):
 
 def add_invoice_group_columns(invoices):
     invoices['is_inv_group'] = False
-    invoices[['inv_group_numbers', 'inv_group_dates']] = np.nan
+    invoices['inv_group_len'] = 1
+    invoices['first_inv_date'] = invoices['inv_date']
+    invoices['last_inv_date'] = invoices['inv_date']
+    invoices['inv_group_numbers'] = np.nan
 
 def format_rut(df, columns):
     df[columns] = df[columns].apply(remove_dash_from_rut)
@@ -130,7 +137,10 @@ def remove_transfers_between_accounts(df):
 
 def add_movement_group_columns(movements):
     movements['is_mov_group'] = False
-    movements[['mov_group_ids', 'mov_group_dates']] = np.nan
+    movements['mov_group_len'] = 1
+    movements['first_mov_date'] = movements['mov_date']
+    movements['last_mov_date'] = movements['mov_date']
+    movements['mov_group_ids'] = np.nan
 
 if __name__ == "__main__":
     pd.set_option('display.max_columns', None)
