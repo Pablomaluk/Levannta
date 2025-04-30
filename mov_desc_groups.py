@@ -25,7 +25,6 @@ def get_invoices_without_rut_associated_movements():
     invoices, movements = get_preprocessed_invoices_and_movements()
     return invoices[~invoices['counterparty_rut'].isin(movements['counterparty_rut'])]
 
-
 def get_pair_indexes(movements):
     links = pd.merge(movements,movements, on=["rut", "counterparty_rut"], suffixes=["_left", "_right"])
     links = links[links["mov_date_left"] <= links["mov_date_right"]]
@@ -33,7 +32,6 @@ def get_pair_indexes(movements):
     links = links[keep]
     links["date_diff"] = (links["mov_date_right"]-links["mov_date_left"]).apply(lambda x: x.days)
     links = links[links["date_diff"] <= 14]
-    links = links.sort_values(by="mov_date_right", ascending=True)
     pair_indexes = pd.MultiIndex.from_frame(links[['mov_id_left', 'mov_id_right']])
     return pair_indexes
 
@@ -44,7 +42,6 @@ def get_similar_movement_pairs(movements, pair_indexes):
     mov_pairs = compare.compute(pair_indexes, movements)
     mov_pairs = mov_pairs[mov_pairs['description_sim'] >= 0.90].reset_index().drop(columns="description_sim")
     return mov_pairs
-    
 
 def group_movements(movements, movement_pairs):
     mov_groups = []
@@ -53,7 +50,7 @@ def group_movements(movements, movement_pairs):
         first_mov = movements.loc[[first_mov_id]]
         first_mov = first_mov.reset_index()
         mov_ids = mov_pairs['mov_id_right'].unique()
-        movs = movements.loc[mov_ids].reset_index()
+        movs = movements.loc[mov_ids].reset_index().sort_values(by="mov_date", ascending=True)
         groups = get_movement_groups(first_mov, movs)
         mov_groups.extend(list(map(lambda x: create_movement_group(x), groups)))
     return pd.DataFrame(mov_groups)
@@ -97,7 +94,6 @@ def create_movement_group(movements):
     group['mov_description'] = np.nan
     return group
 
-
 if __name__ == "__main__":
     pd.set_option('display.max_columns', None)
     mov_groups = get_mov_groups_with_similar_descriptions()
@@ -110,7 +106,3 @@ if __name__ == "__main__":
         exact_matches.to_excel(writer, sheet_name="Posibles matches exactos", index=False)
         mov_groups.to_excel(writer, sheet_name="Posibles agrupaciones", index=False)
         invs.to_excel(writer, sheet_name="Facturas sin pagos asociables", index=False)
-        
-
-
-
