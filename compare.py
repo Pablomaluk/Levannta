@@ -7,6 +7,9 @@ from preprocessing import get_preprocessed_invoices_and_movements
 
 pd.set_option('display.max_columns', None)
 
+MATCH_COLUMNS = ["rut", "counterparty_rut", "inv_date", "mov_date", "mov_description",
+                 "inv_number", "inv_amount", "mov_amount", "score", "mov_id"]
+
 def fix_column_types(invoices, movements, matches, clay):
     matches['rut'] = matches['rut'].astype(str)
     matches['counterparty_rut'] = matches['counterparty_rut'].astype(str)
@@ -27,7 +30,7 @@ def get_correct_matches(matches, clay):
     merge = pd.merge(matches, clay, on=['rut', 'counterparty_rut', 'mov_amount', 'inv_number'], suffixes=["_matches","_clay"])
     merge = merge[['rut','counterparty_rut', 'inv_amount', 'mov_amount', 'inv_number',
                'inv_date_matches', 'inv_date_clay', 'mov_date_matches', 'mov_date_clay', 
-               'mov_description_matches', 'mov_description_clay']]
+               'mov_description_matches', 'mov_description_clay', 'score']]
     merge['day_diff'] = (merge['mov_date_matches'] - merge['mov_date_clay']).apply(lambda x: abs(x.days))
     merge = merge.sort_values(by=['day_diff'], ascending=False)
     return merge
@@ -55,21 +58,29 @@ def save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all
         # pending_invoices.to_excel(writer, sheet_name="Facts pend existentes", index=False)
         # pending_movements.to_excel(writer, sheet_name="Movs pend existentes", index=False)
 
+def print_matches(invoices, movements, matches):
+    pending_invoices = invoices[~invoices['inv_number'].isin(matches['inv_number'])]
+    pending_movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
+    ruts = matches['rut'].unique().tolist()
+    print(f"TOTAL Invoices: {percent(matches['inv_number'].nunique()/(matches['inv_number'].nunique()+len(pending_invoices)))}",
+        f"TOTAL Movements: {percent(matches['mov_id'].nunique()/(matches['mov_id'].nunique()+len(pending_movements)))}")
+    for rut in ruts:
+        inv_matches = matches[matches['rut'] == rut]['inv_number'].nunique()
+        mov_matches = matches[matches['rut'] == rut]['mov_id'].nunique()
+        invs_pending = len(pending_invoices[pending_invoices['rut'] == rut])
+        movs_pending = len(pending_movements[pending_movements['rut'] == rut])
+        print(f"RUT: {rut}; Invs assigned: {percent(inv_matches/(inv_matches + invs_pending))}; Movs assigned: {percent(mov_matches/(mov_matches + movs_pending))}")
+    print('')
+
+def percent(num):
+    return f"{round(100*num, 2)}%"
 
 if __name__ == "__main__":
-    all_invs, all_movs = get_preprocessed_invoices_and_movements()
-    all_movs = all_movs[all_movs['rut'] == 761341235]
-    min_mov_date = all_movs['mov_date'].min()
-    print(min_mov_date, type(min_mov_date))
-    invoices, movements, matches = main()
+    invoices, movements = get_preprocessed_invoices_and_movements()
+    matches = main()
     clay = get_clay_preprocessed_data()
     invoices, movements, matches, clay = fix_column_types(invoices, movements, matches, clay)
-    invoices = invoices[invoices['rut'] == '761341235']
-    movements = movements[movements['rut'] == '761341235']
-    all_invs = all_invs[all_invs['rut'] == 761341235]
-    matches = matches[matches['rut'] == '761341235']
-    clay = clay[(clay['rut'] == '761341235') & (clay['mov_date'] >= min_mov_date)]
-    #clay = clay[clay['rut'] == '761341235']
+    matches = matches[MATCH_COLUMNS]
     merge = get_correct_matches(matches, clay)
     wrong_matches, missing_matches, missing_clay = get_missing_matches(matches, clay, merge)
     print("Clay:", len(clay))
@@ -77,6 +88,5 @@ if __name__ == "__main__":
     print("Incorrectos:", len(wrong_matches))
     print("Matches no existentes en Clay:", len(missing_matches))
     print("Matches de Clay pendientes:", len(missing_clay))
-    print("Facturas pendientes:", len(all_invs))
-    print("Movimientos pendientes:", len(all_movs))
-    save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all_movs)
+    print_matches(invoices, movements, matches)
+    save_comp(merge, wrong_matches, missing_matches, missing_clay, invoices, movements)

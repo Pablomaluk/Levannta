@@ -1,4 +1,3 @@
-import pandas as pd
 import numpy as np
 from params import MAX_REL_AMOUNT_DIFF, GAUSSIAN_SIMILARITY_SCALE
 
