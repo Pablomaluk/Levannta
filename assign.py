@@ -12,13 +12,13 @@ def assign(matches):
 
 def calculate_scores(matches):
     matches['size_score'] = matches['match_size'].apply(
-        lambda x: 1 - ((x-1)/(MAX_GROUP_LEN**2-1))/2
+        lambda x: 1 - ((x-1)/(MAX_GROUP_LEN**2-1))
     )
     matches['date_score'] = matches['date_diff'].apply(
         lambda x: 1 - x / 180
     )
     matches['score'] = (matches['amount_similarity'] * SIMILARITY_WEIGHT *
-                        matches['size_score'] * SIZE_WEIGHT *
+                        #matches['size_score'] * SIZE_WEIGHT *
                         matches['date_score'] * DATE_WEIGHT)
     return matches[['inv_group_numbers', 'mov_group_ids', 'score', 'amount_similarity', 'size_score', 'date_score']]
 

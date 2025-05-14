@@ -1,13 +1,9 @@
 import pandas as pd
 import itertools
-from group_helpers import create_movement_group, get_movements_with_rut_associated_invoices
+from group_helpers import create_movement_group
 from params import MAX_GROUP_LEN, MAX_GROUP_DATE_DIFF
 
-def get_movement_groups_with_counterparty_invoices(invoices, movements):
-    movements = get_movements_with_rut_associated_invoices(invoices, movements)
-    return group_movements(movements)
-
-def group_movements(movements):
+def get_movement_groups(movements):
     mov_groups = []
     for _, movs in movements.groupby(['rut', 'counterparty_rut']):
         group = movs.sort_values(by="mov_date", ascending=True)

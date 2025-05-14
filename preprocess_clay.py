@@ -19,8 +19,10 @@ def get_clay_preprocessed_data():
             'mov_description', 'match_amount', 
             'mov_amount', 'rut', 'counterparty_rut']
     
-    with pd.ExcelWriter('Clay.xlsx') as writer:
-        df.to_excel(writer, sheet_name="Clay Preprocesado", index=False)
-    
     return df
 
+if __name__ == '__main__':
+    df = get_clay_preprocessed_data()
+    print(len(df))
+    # with pd.ExcelWriter('Clay.xlsx') as writer:
+    #     df.to_excel(writer, sheet_name="Clay Preprocesado", index=False)

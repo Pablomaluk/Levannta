@@ -115,7 +115,7 @@ def add_invoice_group_columns(invoices):
     invoices['inv_group_len'] = 1
     invoices['first_inv_date'] = invoices['inv_date']
     invoices['last_inv_date'] = invoices['inv_date']
-    invoices['inv_group_numbers'] = np.nan
+    #invoices['inv_group_numbers'] = np.nan
 
 def format_rut(df, columns):
     df[columns] = df[columns].apply(remove_dash_from_rut)
@@ -140,10 +140,10 @@ def add_movement_group_columns(movements):
     movements['mov_group_len'] = 1
     movements['first_mov_date'] = movements['mov_date']
     movements['last_mov_date'] = movements['mov_date']
-    movements['mov_group_ids'] = np.nan
+    #movements['mov_group_ids'] = np.nan
 
 if __name__ == "__main__":
     pd.set_option('display.max_columns', None)
     inv, mov = get_preprocessed_invoices_and_movements()
-    print(inv.head())
-    print(mov.head())
+    print(len(inv))
+    print(len(mov))
