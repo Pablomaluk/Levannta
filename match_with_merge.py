@@ -4,7 +4,7 @@ from preprocessing import get_preprocessed_invoices_and_movements
 from inv_groups import get_invoice_groups
 from mov_groups import get_movement_groups
 from amount_similarity import get_matches_with_similar_amounts
-from assign import assign
+from ilp import assign
 from params import MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV
 
 

@@ -10,8 +10,8 @@ from params import MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV, AMOUNT_BIN, 
 
 def main():
     invoices, movements = get_preprocessed_invoices_and_movements()
-    invoices = invoices[invoices['rut'] != 763614220]
-    movements = movements[movements['rut'] != 763614220]
+    #invoices = invoices[invoices['rut'] != 763614220]
+    #movements = movements[movements['rut'] != 763614220]
     return match_with_counterparty_rut(invoices, movements)
     #match_without_counterparty_rut(invoices, movements)
 
@@ -110,21 +110,20 @@ def save_results(matches, inv_id_map, mov_id_map):
     mov_map = {v:k for k,v in mov_id_map.items()}
     for i, row in matches.iterrows():
         if len(row['inv_group_numbers']) == 1 or len(row['mov_group_ids']) == 1:
-            continue
             for inv in row.inv_group_numbers:
                 for mov in row.mov_group_ids:
                     res.append({'rut':inv_map[inv][0],'inv_number':inv_map[inv][1], 'mov_id':mov_map[mov], 'score':row.score})
         else:
-            for inv in row.inv_group_numbers:
-                for mov in row.mov_group_ids:
-                    res.append({'rut':inv_map[inv][0],'inv_number':inv_map[inv][1], 'mov_id':mov_map[mov], 'score':row.score})
+            continue
     matches = pd.DataFrame(res)
     matches = pd.merge(invoices, matches, on=['rut', 'inv_number'])
     matches = pd.merge(movements, matches, on=['rut', 'counterparty_rut', 'mov_id'], suffixes=["_",""])
+    print(matches)
     facturas_conciliadas = matches.groupby(['rut','inv_number']).ngroups
     facturas_totales = invoices.groupby(['rut','inv_number']).ngroups
     print(f"Facturas totales: {facturas_totales}, Facturas conciliadas: {facturas_conciliadas}, Conciliación: {100*facturas_conciliadas/facturas_totales}%")
     with pd.ExcelWriter('Matches.xlsx') as writer:
+        print(matches)
         matches.to_excel(writer, sheet_name="Matches", index=False)
     return matches
 

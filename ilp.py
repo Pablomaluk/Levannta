@@ -3,12 +3,11 @@ from pulp import LpProblem, LpMaximize, LpVariable, lpSum, LpBinary
 from collections import defaultdict
 from params import MAX_GROUP_LEN, SIMILARITY_WEIGHT, SIZE_WEIGHT, DATE_WEIGHT
 
-def assign(matches):
+def optimize(matches):
     matches = calculate_scores(matches)
     matches = solve_ilp(matches)
-    matches.to_parquet('Results.parquet', index=False)
+    #matches.to_parquet('Results.parquet', index=False)
     return matches
-
 
 def calculate_scores(matches):
     matches['size_score'] = matches['match_size'].apply(
@@ -24,10 +23,7 @@ def calculate_scores(matches):
 
 def solve_ilp(matches):
     prob = LpProblem("InvoiceMovementMatching", LpMaximize)
-    x = {
-        idx: LpVariable(f"x_{idx}", cat=LpBinary)
-        for idx in matches.index
-    }
+    x = {idx: LpVariable(f"x_{idx}", cat=LpBinary) for idx in matches.index}
 
     prob += lpSum(matches.loc[idx, 'score'] * x[idx] for idx in matches.index)
 
@@ -53,4 +49,4 @@ def solve_ilp(matches):
 
 if __name__ == "__main__":
     matches = pd.read_parquet("Candidates.parquet")
-    assign(matches)
+    optimize(matches)
