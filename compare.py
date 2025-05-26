@@ -7,6 +7,12 @@ from preprocessing import get_preprocessed_invoices_and_movements
 
 pd.set_option('display.max_columns', None)
 
+MATCH_COLUMNS = ["rut", "counterparty_rut", "inv_date", "mov_date", "mov_description",
+                "inv_number", "inv_amount", "mov_amount", "score", "mov_id"]
+MERGE_COLUMNS = ['rut', 'counterparty_rut', 'inv_number', 'inv_date_match', 'inv_date_clay',
+                'mov_date_match', 'mov_date_clay', 'inv_amount', 'mov_amount_match', 'mov_amount_clay', '_merge']
+TOLERANCE = 7
+
 def fix_column_types(invoices, movements, matches, clay):
     matches['rut'] = matches['rut'].astype(str)
     matches['counterparty_rut'] = matches['counterparty_rut'].astype(str)
@@ -23,24 +29,29 @@ def fix_column_types(invoices, movements, matches, clay):
     clay['inv_date'] = pd.to_datetime(clay['inv_date']).dt.date
     return invoices, movements, matches, clay
 
-def get_correct_matches(matches, clay):
-    merge = pd.merge(matches, clay, on=['rut', 'counterparty_rut', 'mov_amount', 'inv_number'], suffixes=["_matches","_clay"])
-    merge = merge[['rut','counterparty_rut', 'inv_amount', 'mov_amount', 'inv_number',
-               'inv_date_matches', 'inv_date_clay', 'mov_date_matches', 'mov_date_clay', 
-               'mov_description_matches', 'mov_description_clay']]
-    merge['day_diff'] = (merge['mov_date_matches'] - merge['mov_date_clay']).apply(lambda x: abs(x.days))
-    merge = merge.sort_values(by=['day_diff'], ascending=False)
-    return merge
-
-def get_missing_matches(matches, clay, merge):
-    missing_clay = clay[~clay['inv_number'].isin(merge['inv_number'])]
-    wrong_matches = matches[matches['inv_number'].isin(missing_clay['inv_number'])]
-    wrong_matches = pd.merge(wrong_matches, missing_clay, on=["rut", "counterparty_rut", "inv_number"], suffixes=["_match", "_clay"])
-    missing_matches = matches[~matches['inv_number'].isin(merge['inv_number']) & ~matches['inv_number'].isin(wrong_matches['inv_number'])]
-    pending_invoices = pd.merge(invoices, missing_clay, on=["rut", "counterparty_rut", "inv_number"])
-    pending_movements = pd.merge(movements, missing_clay, on=["rut", "counterparty_rut", "mov_amount"], suffixes=["", "_clay"])
-    return wrong_matches, missing_matches, missing_clay
-#pending_movements = pending_movements[pending_movements.apply(lambda x: x[''], axis=0)]
+def eval_matches(matches, clay):
+    print(len(matches), len(clay))
+    merge = clay.merge(matches, on=['rut','inv_number', 'counterparty_rut'], how='outer', 
+                       suffixes=('_clay','_match'), indicator=True)
+    merge = merge[MERGE_COLUMNS]
+    tol = dt.timedelta(days=TOLERANCE)
+    merge['mov_date_clay'] = pd.to_datetime(merge['mov_date_clay'], errors='coerce')
+    merge['mov_date_match'] = pd.to_datetime(merge['mov_date_match'], errors='coerce')
+    merge['date_diff'] = (merge['mov_date_clay']-merge['mov_date_match']).abs().dt.days
+    correct = merge[(merge['_merge']=='both') &
+                    (merge['mov_amount_clay'] == merge['mov_amount_match']) &
+                    (merge['date_diff'] <= TOLERANCE)]
+    correct = correct.sort_values(by='date_diff', ascending=False).drop(columns='_merge')
+    mismatch = merge[(merge['_merge']=='both') & ~(merge.index.isin(correct.index))]
+    missing_clay = merge[merge['_merge']=='left_only']
+    extra_matches    = merge[merge['_merge']=='right_only']
+    print("Correct matches:", 100*len(correct)/len(merge))
+    print("Incorrect matches:", 100*len(mismatch)/len(merge))
+    #print("Matches evaluated:", 100*len(merge)/len(matches))
+    #print("Matches only in matches:", 100*len(extra_matches)/len(matches))
+    #print("Matches only in clay:", 100*len(missing_clay)/len(matches))
+    return correct, mismatch, missing_clay, extra_matches
+    
 
 def save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all_movs):
     with pd.ExcelWriter('Compare.xlsx') as writer:
@@ -48,35 +59,15 @@ def save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all
         wrong_matches.to_excel(writer, sheet_name="Matches distintos", index=False)
         missing_matches.to_excel(writer, sheet_name="Matches faltantes en Clay", index=False)
         missing_clay.to_excel(writer, sheet_name="Matches de Clay pendientes", index=False)
-        all_invs.to_excel(writer, sheet_name="Todas las facts BQ", index=False)
-        all_movs.to_excel(writer, sheet_name="Todos los movs BQ", index=False)
-        # invoices.to_excel(writer, sheet_name="Todas las facts", index=False)
-        # movements.to_excel(writer, sheet_name="Todos los movs", index=False)
-        # pending_invoices.to_excel(writer, sheet_name="Facts pend existentes", index=False)
-        # pending_movements.to_excel(writer, sheet_name="Movs pend existentes", index=False)
-
+        all_invs.to_excel(writer, sheet_name="Todas las facts", index=False)
+        all_movs.to_excel(writer, sheet_name="Todos los movs", index=False)
 
 if __name__ == "__main__":
-    all_invs, all_movs = get_preprocessed_invoices_and_movements()
-    all_movs = all_movs[all_movs['rut'] == 761341235]
-    min_mov_date = all_movs['mov_date'].min()
-    print(min_mov_date, type(min_mov_date))
-    invoices, movements, matches = main()
+    invoices, movements = get_preprocessed_invoices_and_movements()
+    matches = main()
     clay = get_clay_preprocessed_data()
     invoices, movements, matches, clay = fix_column_types(invoices, movements, matches, clay)
-    invoices = invoices[invoices['rut'] == '761341235']
-    movements = movements[movements['rut'] == '761341235']
-    all_invs = all_invs[all_invs['rut'] == 761341235]
-    matches = matches[matches['rut'] == '761341235']
-    clay = clay[(clay['rut'] == '761341235') & (clay['mov_date'] >= min_mov_date)]
-    #clay = clay[clay['rut'] == '761341235']
-    merge = get_correct_matches(matches, clay)
-    wrong_matches, missing_matches, missing_clay = get_missing_matches(matches, clay, merge)
-    print("Clay:", len(clay))
-    print("Merge:", len(merge))
-    print("Incorrectos:", len(wrong_matches))
-    print("Matches no existentes en Clay:", len(missing_matches))
-    print("Matches de Clay pendientes:", len(missing_clay))
-    print("Facturas pendientes:", len(all_invs))
-    print("Movimientos pendientes:", len(all_movs))
-    save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all_movs)
+    #clay = clay[clay['rut'] != '763614220']
+    matches = matches[MATCH_COLUMNS]
+    correct, mismatch, missing_clay, extra_matches = eval_matches(matches, clay)
+    save_comp(correct, mismatch, extra_matches, missing_clay, invoices, movements)
