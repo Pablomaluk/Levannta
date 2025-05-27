@@ -11,6 +11,5 @@ def main():
         preprocessing.get_preprocessed_invoices_and_movements(),
         exact_amounts.get_current_dfs,
         similar_amounts.get_current_dfs,
-        grouped_invoices.get_current_dfs,
-        save_results
+        grouped_invoices.get_current_dfs
     )

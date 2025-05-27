@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import helpers
+from params import MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV, GAUSSIAN_SIMILARITY_SCALE, MAX_REL_AMOUNT_DIFF, MAX_GREEDY_ITERATIONS
 
 PATH = "Similar Amounts"
 
@@ -17,25 +18,26 @@ def main(invoices, movements, previous_matches):
     return pending_invoices, pending_movements, matches
 
 def get_matches_in_date_range(matches):
-    return matches[(matches['mov_date'] >= matches['inv_date'] - dt.timedelta(days=14)) &
-                   (matches['mov_date'] <= matches['inv_date'] + dt.timedelta(days=90))]
+    return matches[(matches['mov_date'] >= matches['inv_date'] - dt.timedelta(days=MAX_MOV_DAYS_BEFORE_INV)) &
+                   (matches['mov_date'] <= matches['inv_date'] + dt.timedelta(days=MAX_MOV_DAYS_AFTER_INV))]
 
 def compare_amount_difference(invoices, movements, matches):
     links = pd.merge(invoices, movements, on=['rut','counterparty_rut'])
     links = get_matches_in_date_range(links)
-    links['rel_amount_diff'] = \
-        abs(links['inv_amount'] - links['mov_amount'])/links['inv_amount']
+    links['rel_amount_diff'] = abs(links['inv_amount'] - links['mov_amount'])/links['inv_amount']
+    links = links[links['rel_amount_diff'] <= MAX_REL_AMOUNT_DIFF]
     links['amount_similarity'] = gaussian_similarity(links['rel_amount_diff'])
     return links
 
 def gaussian_similarity(series):
-    scale = 0.05  # ~5% diferencia
-    return np.exp(-(series / scale) ** 2)
+    return np.exp(-(series / GAUSSIAN_SIMILARITY_SCALE) ** 2)
 
 def assign_gaussian_matches(matches):
-    pending_matches = matches[matches['amount_similarity'] > 0.2].sort_values(by='amount_similarity', ascending=False)
+    pending_matches = matches.sort_values(by='amount_similarity', ascending=False)
     matches = matches.iloc[0:0]
-    while pending_matches['inv_number'].nunique() and pending_matches['mov_id'].nunique():
+    for i in range(MAX_GREEDY_ITERATIONS):
+        if not (pending_matches['inv_number'].nunique() and pending_matches['mov_id'].nunique()):
+            break
         new_matches = get_best_gaussian_matches(pending_matches)
         matches = pd.concat([matches, new_matches])
         pending_matches = pending_matches[

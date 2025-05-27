@@ -58,7 +58,7 @@ def save_results(dfs):
         matches.to_excel(writer, sheet_name="Matches", index=False)
         invoices.to_excel(writer, sheet_name="Facturas pendientes", index=False)
         movements.to_excel(writer, sheet_name="Movimientos pendientes", index=False)
-    return dfs
+    return matches
 
 def get_excel_summary_per_rut(pending_invoices, pending_movements, matches):
     ruts = matches['rut'].unique().tolist()

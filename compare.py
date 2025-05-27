@@ -8,7 +8,7 @@ from preprocessing import get_preprocessed_invoices_and_movements
 pd.set_option('display.max_columns', None)
 
 MATCH_COLUMNS = ["rut", "counterparty_rut", "inv_date", "mov_date", "mov_description",
-                "inv_number", "inv_amount", "mov_amount", "score", "mov_id"]
+                "inv_number", "inv_amount", "mov_amount", "mov_id"]
 MERGE_COLUMNS = ['rut', 'counterparty_rut', 'inv_number', 'inv_date_match', 'inv_date_clay',
                 'mov_date_match', 'mov_date_clay', 'inv_amount', 'mov_amount_match', 'mov_amount_clay', '_merge']
 TOLERANCE = 7
@@ -34,7 +34,6 @@ def eval_matches(matches, clay):
     merge = clay.merge(matches, on=['rut','inv_number', 'counterparty_rut'], how='outer', 
                        suffixes=('_clay','_match'), indicator=True)
     merge = merge[MERGE_COLUMNS]
-    tol = dt.timedelta(days=TOLERANCE)
     merge['mov_date_clay'] = pd.to_datetime(merge['mov_date_clay'], errors='coerce')
     merge['mov_date_match'] = pd.to_datetime(merge['mov_date_match'], errors='coerce')
     merge['date_diff'] = (merge['mov_date_clay']-merge['mov_date_match']).abs().dt.days
@@ -48,8 +47,8 @@ def eval_matches(matches, clay):
     print("Correct matches:", 100*len(correct)/len(merge))
     print("Incorrect matches:", 100*len(mismatch)/len(merge))
     #print("Matches evaluated:", 100*len(merge)/len(matches))
-    #print("Matches only in matches:", 100*len(extra_matches)/len(matches))
-    #print("Matches only in clay:", 100*len(missing_clay)/len(matches))
+    print("Matches only in matches:", 100*len(extra_matches)/len(merge))
+    print("Matches only in clay:", 100*len(missing_clay)/len(merge))
     return correct, mismatch, missing_clay, extra_matches
     
 
@@ -64,7 +63,8 @@ def save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all
 
 if __name__ == "__main__":
     invoices, movements = get_preprocessed_invoices_and_movements()
-    matches = main()
+    _, __, matches = main()
+    print(type(matches), matches.head(5))
     clay = get_clay_preprocessed_data()
     invoices, movements, matches, clay = fix_column_types(invoices, movements, matches, clay)
     #clay = clay[clay['rut'] != '763614220']

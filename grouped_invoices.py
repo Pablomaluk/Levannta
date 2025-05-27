@@ -3,6 +3,7 @@ import numpy as np
 import datetime as dt
 import itertools
 import helpers
+from params import MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV, MAX_GROUP_LEN, MAX_GROUP_DATE_DIFF
 
 PATH = "Grouped Invoices"
 
@@ -22,10 +23,9 @@ def main(invoices, movements, previous_matches):
         pending_movements = movements[~movements['mov_id'].isin(matches['mov_id'])]
         return pending_invoices, pending_movements, matches
 
-
 def get_matches_in_date_range(matches):
-    cond = matches.apply(lambda x: x['mov_date'] >= x['inv_date'] and
-                         x['mov_date'] >= x['inv_group_dates'][-1] - dt.timedelta(days=90), axis=1)
+    cond = matches.apply(lambda x: x['mov_date'] >= x['inv_date'] - dt.timedelta(days=MAX_MOV_DAYS_BEFORE_INV) and
+                         x['mov_date'] <= x['inv_group_dates'][-1] + dt.timedelta(days=MAX_MOV_DAYS_AFTER_INV), axis=1)
     return matches[cond]
 
 def get_exact_matches(invoices, movements):
@@ -45,10 +45,7 @@ def group_invoices_and_return_groups_with_matches(pending_invoices, pending_move
             invoice_group = create_invoice_group(group)
             if invoice_group['inv_amount'] in counterparty_movements['mov_amount'].values:
                 invoice_groups_with_matches.append(invoice_group)
-    invoice_groups_with_matches = pd.DataFrame(invoice_groups_with_matches)
-    date_range_filter = invoice_groups_with_matches.apply(lambda x:
-                    x['inv_group_dates'][0] >= x['inv_group_dates'][-1] - dt.timedelta(days=90), axis=1)
-    return invoice_groups_with_matches[date_range_filter]
+    return pd.DataFrame(invoice_groups_with_matches)
 
 def get_invoices_from_counterparties_with_movements(invoices, movements):
     counterparties_with_movements = movements['counterparty_rut'].unique()
@@ -57,10 +54,11 @@ def get_invoices_from_counterparties_with_movements(invoices, movements):
 def get_invoice_groups(df):
     subgroups = []
     df = df.sort_values(by='inv_date', ascending=True).to_dict('records')
-    for index in range(len(df)-4):
-        for length in range(2,5):
-            subgroups.extend([list(comb) for comb in itertools.combinations(df[index:index+5], length) \
-                if comb[0]['inv_date'] >= comb[-1]['inv_date'] - dt.timedelta(days=90)])
+    for index in range(len(df)-MAX_GROUP_LEN+1):
+        if df[index]['inv_date'] < df[index+MAX_GROUP_LEN-1]['inv_date'] - dt.timedelta(days=MAX_GROUP_DATE_DIFF):
+            continue
+        for length in range(2,MAX_GROUP_LEN+1):
+            subgroups.extend([list(comb) for comb in itertools.combinations(df[index:index+MAX_GROUP_LEN], length)])
     return subgroups
 
 def create_invoice_group(invoices):
