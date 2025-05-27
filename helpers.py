@@ -2,13 +2,14 @@ import os
 import pandas as pd
 
 def get_current_dfs(main_function, path):
-    try:
-        dfs = read_dfs(path)
-    except FileNotFoundError:
-        dfs = main_function()
-        save_dfs(path, *dfs)
-    print(path)
-    print_matches_percentage_per_rut(*dfs)
+    # try:
+    #     dfs = read_dfs(path)
+    # except FileNotFoundError:
+    #     dfs = main_function()
+    #     save_dfs(path, *dfs)
+    dfs = main_function()
+    # print(path)
+    # print_matches_percentage_per_rut(*dfs)
     return dfs
 
 def read_dfs(path):

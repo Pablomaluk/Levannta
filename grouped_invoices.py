@@ -3,7 +3,7 @@ import numpy as np
 import datetime as dt
 import itertools
 import helpers
-from params import MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV, MAX_GROUP_LEN, MAX_GROUP_DATE_DIFF
+import params #import MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV, MAX_GROUP_LEN, MAX_GROUP_DATE_DIFF
 
 PATH = "Grouped Invoices"
 
@@ -24,8 +24,8 @@ def main(invoices, movements, previous_matches):
         return pending_invoices, pending_movements, matches
 
 def get_matches_in_date_range(matches):
-    cond = matches.apply(lambda x: x['mov_date'] >= x['inv_date'] - dt.timedelta(days=MAX_MOV_DAYS_BEFORE_INV) and
-                         x['mov_date'] <= x['inv_group_dates'][-1] + dt.timedelta(days=MAX_MOV_DAYS_AFTER_INV), axis=1)
+    cond = matches.apply(lambda x: x['mov_date'] >= x['inv_date'] - dt.timedelta(days=params.MAX_MOV_DAYS_BEFORE_INV) and
+                         x['mov_date'] <= x['inv_group_dates'][-1] + dt.timedelta(days=params.MAX_MOV_DAYS_AFTER_INV), axis=1)
     return matches[cond]
 
 def get_exact_matches(invoices, movements):
@@ -54,11 +54,11 @@ def get_invoices_from_counterparties_with_movements(invoices, movements):
 def get_invoice_groups(df):
     subgroups = []
     df = df.sort_values(by='inv_date', ascending=True).to_dict('records')
-    for index in range(len(df)-MAX_GROUP_LEN+1):
-        if df[index]['inv_date'] < df[index+MAX_GROUP_LEN-1]['inv_date'] - dt.timedelta(days=MAX_GROUP_DATE_DIFF):
+    for index in range(len(df)-params.MAX_GROUP_LEN+1):
+        if df[index]['inv_date'] < df[index+params.MAX_GROUP_LEN-1]['inv_date'] - dt.timedelta(days=params.MAX_GROUP_DATE_DIFF):
             continue
-        for length in range(2,MAX_GROUP_LEN+1):
-            subgroups.extend([list(comb) for comb in itertools.combinations(df[index:index+MAX_GROUP_LEN], length)])
+        for length in range(2,params.MAX_GROUP_LEN+1):
+            subgroups.extend([list(comb) for comb in itertools.combinations(df[index:index+params.MAX_GROUP_LEN], length)])
     return subgroups
 
 def create_invoice_group(invoices):

@@ -3,7 +3,7 @@ import numpy as np
 import itertools
 import datetime as dt
 import helpers
-from params import MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV, MAX_GROUP_LEN
+import params #MAX_MOV_DAYS_BEFORE_INV, MAX_MOV_DAYS_AFTER_INV, MAX_GROUP_LEN
 
 PATH = "Exact Amounts"
 
@@ -33,8 +33,8 @@ def get_exact_matches(invoices, movements):
     return get_matches_in_date_range(matches)
 
 def get_matches_in_date_range(matches):
-    return matches[(matches['mov_date'] >= matches['inv_date'] - dt.timedelta(days=MAX_MOV_DAYS_BEFORE_INV)) &
-                   (matches['mov_date'] <= matches['inv_date'] + dt.timedelta(days=MAX_MOV_DAYS_AFTER_INV))]
+    return matches[(matches['mov_date'] >= matches['inv_date'] - dt.timedelta(days=params.MAX_MOV_DAYS_BEFORE_INV)) &
+                   (matches['mov_date'] <= matches['inv_date'] + dt.timedelta(days=params.MAX_MOV_DAYS_AFTER_INV))]
 
 def get_pending_movements(movements, matches):
     return movements[~movements['mov_id'].isin(matches['mov_id'])]
@@ -54,9 +54,9 @@ def group_movements_and_return_groups_with_matches(pending_movements, invoices):
 def get_movement_groups(df):
     subgroups = []
     df = df.sort_values(by='mov_date', ascending=True).to_dict('records')
-    for index in range(len(df)-MAX_GROUP_LEN+1):
-        for length in range(2,MAX_GROUP_LEN+1):
-            subgroups.extend([list(comb) for comb in itertools.combinations(df[index:index+MAX_GROUP_LEN], length)])
+    for index in range(len(df)-params.MAX_GROUP_LEN+1):
+        for length in range(2,params.MAX_GROUP_LEN+1):
+            subgroups.extend([list(comb) for comb in itertools.combinations(df[index:index+params.MAX_GROUP_LEN], length)])
     return subgroups
 
 def create_movement_group(movements):
