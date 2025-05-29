@@ -1,8 +1,7 @@
 import pandas as pd
 import itertools
 from group_helpers import create_invoice_group
-from preprocessing import get_preprocessed_invoices_and_movements
-from params import MAX_GROUP_LEN, MAX_GROUP_DATE_DIFF
+import params
 
 def get_invoice_groups(invoices):
     inv_groups = []
@@ -15,18 +14,20 @@ def get_invoice_groups(invoices):
 def get_group_subgroups(invs):
     seen_keys = set()
     unique_groups = []
-    max_group_len = min(MAX_GROUP_LEN, len(invs))
+    max_group_len = min(params.MAX_GROUP_LEN, len(invs))
     invs = invs.to_dict('records')
     for i in range(max(1, len(invs) - max_group_len + 1)):
-        window_len = min(MAX_GROUP_LEN, len(invs) - i)
+        window_len = min(params.MAX_GROUP_LEN, len(invs) - i)
         window = invs[i:i + window_len]
         for length in range(2, window_len + 1):
+            # if (window[length-1]['inv_date'] - window[0]['inv_date']).days > params.MAX_GROUP_DATE_DIFF:
+            #     continue
             for comb in itertools.combinations(window, length):
                 key = tuple(sorted(m['inv_number'] for m in comb))
                 if key not in seen_keys:
                     seen_keys.add(key)
                     min_date = min(map(lambda x: x['inv_date'], comb))
                     max_date = max(map(lambda x: x['inv_date'], comb))
-                    if (max_date - min_date).days <= MAX_GROUP_DATE_DIFF:
+                    if (max_date - min_date).days <= params.MAX_GROUP_DATE_DIFF:
                         unique_groups.append(list(comb))
     return unique_groups

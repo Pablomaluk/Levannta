@@ -1,14 +1,15 @@
 import pandas as pd
-import datetime as dt
 import re
 from preprocess_clay import get_clay_preprocessed_data
 from main import main
 from preprocessing import get_preprocessed_invoices_and_movements
+from sklearn.model_selection import ParameterGrid
+import params
 
 pd.set_option('display.max_columns', None)
 
 MATCH_COLUMNS = ["rut", "counterparty_rut", "inv_date", "mov_date", "mov_description",
-                "inv_number", "inv_amount", "mov_amount", "score", "mov_id"]
+                "inv_number", "inv_amount", "mov_amount", "mov_id"]
 MERGE_COLUMNS = ['rut', 'counterparty_rut', 'inv_number', 'inv_date_match', 'inv_date_clay',
                 'mov_date_match', 'mov_date_clay', 'inv_amount', 'mov_amount_match', 'mov_amount_clay', '_merge']
 TOLERANCE = 7
@@ -29,12 +30,10 @@ def fix_column_types(invoices, movements, matches, clay):
     clay['inv_date'] = pd.to_datetime(clay['inv_date']).dt.date
     return invoices, movements, matches, clay
 
-def eval_matches(matches, clay):
-    print(len(matches), len(clay))
+def eval_matches(invoices, matches, clay):
     merge = clay.merge(matches, on=['rut','inv_number', 'counterparty_rut'], how='outer', 
                        suffixes=('_clay','_match'), indicator=True)
     merge = merge[MERGE_COLUMNS]
-    tol = dt.timedelta(days=TOLERANCE)
     merge['mov_date_clay'] = pd.to_datetime(merge['mov_date_clay'], errors='coerce')
     merge['mov_date_match'] = pd.to_datetime(merge['mov_date_match'], errors='coerce')
     merge['date_diff'] = (merge['mov_date_clay']-merge['mov_date_match']).abs().dt.days
@@ -45,14 +44,70 @@ def eval_matches(matches, clay):
     mismatch = merge[(merge['_merge']=='both') & ~(merge.index.isin(correct.index))]
     missing_clay = merge[merge['_merge']=='left_only']
     extra_matches    = merge[merge['_merge']=='right_only']
-    print("Correct matches:", 100*len(correct)/len(merge))
-    print("Incorrect matches:", 100*len(mismatch)/len(merge))
-    #print("Matches evaluated:", 100*len(merge)/len(matches))
-    #print("Matches only in matches:", 100*len(extra_matches)/len(matches))
-    #print("Matches only in clay:", 100*len(missing_clay)/len(matches))
+    total_invs = invoices.groupby(["rut", "inv_number"]).ngroups
+    matched_invs = matches.groupby(["rut", "inv_number"]).ngroups
+    print(f"Correct matches: {round(100*len(correct)/len(merge),2)}%")
+    print(f"Incorrect matches: {round(100*len(mismatch)/len(merge),2)}%")
+    print(f"Matches only in matches: {round(100*len(extra_matches)/len(merge),2)}%")
+    print(f"Matches only in clay: {round(100*len(missing_clay)/len(merge),2)}%")
+    print(f"Precision: {round(100*len(correct)/(len(correct)+len(mismatch)),2)}%")
+    print(f"Coverage: {100*matched_invs/total_invs}%")
     return correct, mismatch, missing_clay, extra_matches
-    
 
+def calculate_score(invoices, matches, clay):
+    merge = clay.merge(matches, on=['rut','inv_number', 'counterparty_rut'], how='outer', 
+                       suffixes=('_clay','_match'), indicator=True)
+    merge = merge[MERGE_COLUMNS]
+    merge['mov_date_clay'] = pd.to_datetime(merge['mov_date_clay'], errors='coerce')
+    merge['mov_date_match'] = pd.to_datetime(merge['mov_date_match'], errors='coerce')
+    merge['date_diff'] = (merge['mov_date_clay']-merge['mov_date_match']).abs().dt.days
+    correct = merge[(merge['_merge']=='both') &
+                    (merge['mov_amount_clay'] == merge['mov_amount_match']) &
+                    (merge['date_diff'] <= TOLERANCE)]
+    correct = correct.sort_values(by='date_diff', ascending=False).drop(columns='_merge')
+    mismatch = merge[(merge['_merge']=='both') & ~(merge.index.isin(correct.index))]
+    total_invs = invoices.groupby(["rut", "inv_number"]).ngroups
+    matched_invs = matches.groupby(["rut", "inv_number"]).ngroups
+    print(f"Precision: {round(100*len(correct)/(len(correct)+len(mismatch)),2)}%")
+    print(f"Coverage: {100*matched_invs/total_invs}%")
+    precision = len(correct)/(len(correct)+len(mismatch))
+    coverage = matched_invs/total_invs
+    score = 2*precision*coverage/(precision+coverage)
+    return score
+
+def tune_params():
+    invoices, movements = get_preprocessed_invoices_and_movements()
+    clay = get_clay_preprocessed_data()
+    best_score = -1.0
+    best_cfg   = None
+    grid = {"MAX_GROUP_LEN": [5],
+            "MAX_GROUP_DATE_DIFF": [155, 170],
+            "MAX_MOV_DAYS_BEFORE_INV": [30],
+            "MAX_MOV_DAYS_AFTER_INV": [170],
+            "MAX_REL_AMOUNT_DIFF": [0.002],
+            "GAUSSIAN_SIMILARITY_SCALE": [0.0004, 0.00035],
+            "WINDOW_SIZE": [3],
+            "AMOUNT_BIN": [100000]}
+    
+    counter = 0
+    pg = ParameterGrid(grid)
+
+    for cfg in pg:
+        counter += 1
+        for name, val in cfg.items():
+            setattr(params, name, val)
+
+
+        matches = main()
+        invoices, movements, matches, clay = fix_column_types(invoices, movements, matches, clay)
+        score = calculate_score(invoices, matches, clay)
+        print(f"Config {counter}/{len(pg)}", "Score:", score, "Best score:", best_score)
+        if score > best_score:
+            best_score = score
+            best_cfg   = cfg.copy()
+            print("Best params:", best_cfg)
+            best_cfg = pd.DataFrame([best_cfg]).to_csv('best_params.csv', index=False) 
+    
 def save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all_movs):
     with pd.ExcelWriter('Compare.xlsx') as writer:
         merge.to_excel(writer, sheet_name="Matches exitosos", index=False)
@@ -63,11 +118,13 @@ def save_comp(merge, wrong_matches, missing_matches, missing_clay, all_invs, all
         all_movs.to_excel(writer, sheet_name="Todos los movs", index=False)
 
 if __name__ == "__main__":
-    invoices, movements = get_preprocessed_invoices_and_movements()
-    matches = main()
-    clay = get_clay_preprocessed_data()
-    invoices, movements, matches, clay = fix_column_types(invoices, movements, matches, clay)
-    #clay = clay[clay['rut'] != '763614220']
-    matches = matches[MATCH_COLUMNS]
-    correct, mismatch, missing_clay, extra_matches = eval_matches(matches, clay)
-    save_comp(correct, mismatch, extra_matches, missing_clay, invoices, movements)
+    # invoices, movements = get_preprocessed_invoices_and_movements()
+    # _, __, matches = main()
+    # print(type(matches), matches.head(5))
+    # clay = get_clay_preprocessed_data()
+    # invoices, movements, matches, clay = fix_column_types(invoices, movements, matches, clay)
+    # #clay = clay[clay['rut'] != '763614220']
+    # matches = matches[MATCH_COLUMNS]
+    # correct, mismatch, missing_clay, extra_matches = eval_matches(invoices, matches, clay)
+    # save_comp(correct, mismatch, extra_matches, missing_clay, invoices, movements)
+    tune_params()
